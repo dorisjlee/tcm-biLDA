@@ -22,14 +22,18 @@ def read_ndcg_dct(method_type):
 def main():
     if len(sys.argv) != 3:
         print ('Usage: python %s no/lda_symptoms/lda_herbs/lda_mixed/bilda_'
-            'symptoms/bilda_herbs/bilda_mixed/embedding_symptoms/embedding_'
-            'herbs/embedding_mixed/synonym' % sys.argv[0])
+            'symptoms/bilda_herbs/bilda_mixed/dca_symptoms/dca_'
+            'herbs/dca_mixed/med2vec_symptoms/med2vec_herbs/med2vec_mixed/'
+            'synonym/pmi_herbs/pmi_symptoms/pmi_mixed/cooccurrence_herbs/'
+            'cooccurrence_symptoms/cooccurrence_mixed rank_metric' % sys.argv[0])
         exit()
     global rank_metric
     method_type, rank_metric = sys.argv[1:]
     assert (method_type in ['no', 'lda_symptoms', 'lda_herbs', 'lda_mixed',
-        'bilda_symptoms', 'bilda_herbs', 'bilda_mixed', 'embedding_symptoms',
-        'embedding_herbs', 'embedding_mixed', 'synonym'])
+        'bilda_symptoms', 'bilda_herbs', 'bilda_mixed', 'dca_symptoms',
+        'dca_herbs', 'dca_mixed', 'med2vec_symptoms', 'med2vec_herbs',
+        'med2vec_mixed', 'synonym', 'pmi_herbs', 'pmi_symptoms', 'pmi_mixed',
+        'cooccurrence_herbs', 'cooccurrence_symptoms', 'cooccurrence_mixed'])
     assert rank_metric in ['ndcg', 'precision', 'recall']
 
     baseline_ndcg_dct = read_ndcg_dct('no_expansion')

@@ -52,7 +52,7 @@
     embeddings on the network constructed by the herb-symptom dictionary.
 
     ```bash
-    $ python embedding_query_expansion.py herbs/symptoms/mixed
+    $ python dca_query_expansion.py herbs/symptoms/mixed
     ```
 
 4.  med2vec query expansion. Must first grab the med2vec.py file from the
@@ -60,6 +60,12 @@
 
     ```bash
     $ python med2vec_query_expansion.py
+    ```
+
+5.  PMI or co-occurrence-based query expansion.
+
+    ```bash
+    $ python cooccurrence_query_expansion.py pmi/cooccurrence herbs/symptoms/mixed
     ```
 
 ### Method Evaluations
@@ -70,7 +76,7 @@
     diseases between the query and document.
 
     ```bash
-    $ python retrieval_evaluation.py no/lda_symptoms/lda_herbs/lda_mixed/bilda_symptoms/bilda_herbs/bilda_mixed/embedding_symptoms/embedding_herbs/embedding_mixed/synonym rank_metric
+    $ python retrieval_evaluation.py no/lda_symptoms/lda_herbs/lda_mixed/bilda_symptoms/bilda_herbs/bilda_mixed/dca_symptoms/dca_herbs/dca_mixed/med2vec_symptoms/med2vec_herbs/med2vec_mixed/synonym/pmi_herbs/pmi_symptoms/pmi_mixed/cooccurrence_herbs/cooccurrence_symptoms/cooccurrence_mixed rank_metric
     ```
 
     rank_metric in ['ndcg', 'precision', 'recall']
@@ -79,5 +85,5 @@
     expansion to the baseline without expansion.
 
     ```bash
-    $ python significance_test.py no/lda_symptoms/lda_herbs/lda_mixed/bilda_symptoms/bilda_herbs/bilda_mixed/embedding_symptoms/embedding_herbs/embedding_mixed/synonym rank_metric
+    $ python significance_test.py no/lda_symptoms/lda_herbs/lda_mixed/bilda_symptoms/bilda_herbs/bilda_mixed/dca_symptoms/dca_herbs/dca_mixed/med2vec_symptoms/med2vec_herbs/med2vec_mixed/synonym/pmi_herbs/pmi_symptoms/pmi_mixed/cooccurrence_herbs/cooccurrence_symptoms/cooccurrence_mixed rank_metric
     ```

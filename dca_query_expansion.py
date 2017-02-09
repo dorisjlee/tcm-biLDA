@@ -112,7 +112,7 @@ def query_expansion(run_num, similarity_dct, similarity_code_list):
             run_num).keys()[:] + get_count_dct('herb', run_num).keys()[:]
         
     # Process output filename.
-    out_fname = './data/train_test/test_embedding_%s_expansion_%d.txt' % (
+    out_fname = './data/train_test/test_dca_%s_expansion_%d.txt' % (
         expansion_type, run_num)
     print out_fname
 

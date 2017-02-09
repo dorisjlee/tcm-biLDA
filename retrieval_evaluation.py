@@ -51,8 +51,9 @@ def get_inverted_index(corpus_dct, method_type):
 
         # Mixed and synonym expansions all have herbs.
         avg_doc_len += len(symptom_list)
-        if 'mixed' in method_type or 'synonym' in method_type:
-            avg_doc_len += len(symptom_list+ herb_list)
+        if ('mixed' in method_type or 'synonym' in method_type or 'herbs'
+            in method_type):
+            avg_doc_len += len(symptom_list + herb_list)
 
         # Update the entry for each symptom and each herb.
         for symptom in symptom_list:
@@ -116,7 +117,8 @@ def evaluate_retrieval(query_dct, corpus_dct, inverted_index, method_type):
 
             # With no query expansion, our document is just the set of symptoms.
             document = d_symptom_list[:]
-            if 'mixed' in method_type or 'synonym' in method_type:
+            if ('mixed' in method_type or 'synonym' in method_type or 'herbs'
+                in method_type):
                 document += d_herb_list
 
             # If expanded, q_symptom list might also contain herbs.
@@ -144,13 +146,18 @@ def evaluate_retrieval(query_dct, corpus_dct, inverted_index, method_type):
 def main():
     if len(sys.argv) != 3:
         print ('Usage: python %s no/lda_symptoms/lda_herbs/lda_mixed/bilda_'
-            'symptoms/bilda_herbs/bilda_mixed/embedding_symptoms/embedding_'
-            'herbs/embedding_mixed/synonym' % sys.argv[0])
+            'symptoms/bilda_herbs/bilda_mixed/dca_symptoms/dca_'
+            'herbs/dca_mixed/med2vec_symptoms/med2vec_herbs/med2vec_mixed/'
+            'synonym/pmi_herbs/pmi_symptoms/pmi_mixed/cooccurrence_herbs/'
+            'cooccurrence_symptoms/cooccurrence_mixed rank_metric' %
+            sys.argv[0])
         exit()
     global rank_metric
     assert (sys.argv[1] in ['no', 'lda_symptoms', 'lda_herbs', 'lda_mixed',
-        'bilda_symptoms', 'bilda_herbs', 'bilda_mixed', 'embedding_symptoms',
-        'embedding_herbs', 'embedding_mixed', 'synonym'])
+        'bilda_symptoms', 'bilda_herbs', 'bilda_mixed', 'dca_symptoms',
+        'dca_herbs', 'dca_mixed', 'med2vec_symptoms', 'med2vec_herbs',
+        'med2vec_mixed', 'synonym', 'pmi_herbs', 'pmi_symptoms', 'pmi_mixed',
+        'cooccurrence_herbs', 'cooccurrence_symptoms', 'cooccurrence_mixed'])
     method_type = '%s_expansion' % sys.argv[1]
     rank_metric = sys.argv[2]
     assert rank_metric in ['ndcg', 'precision', 'recall']
@@ -178,7 +185,7 @@ def main():
     for k in k_list:
         metric_list = all_metric_dct[k]
         for metric in metric_list:
-            out.write('%f\t%d\n' % (metric, k))
+            out.write('%g\t%d\n' % (metric, k))
     out.close()
 
 if __name__ == '__main__':
