@@ -52,17 +52,26 @@
     embeddings on the network constructed by the herb-symptom dictionary.
 
     ```bash
-    $ python dca_query_expansion.py herbs/symptoms/mixed
+    $ python dca_query_expansion.py dca herbs/symptoms/mixed sim_thresh
     ```
 
-4.  med2vec query expansion. Must first grab the med2vec.py file from the
+4.  Runs prosnet on the PPI, Protein-herb, herb-symptom dictionary, co-occurrence
+    network. Then creates a similarity matrix similar to that of PaReCat's
+    embeddings.
+
+    ```bash
+    $ python run_prosnet.py
+    $ python dca_query_expansion.py prosnet herbs/symptoms/mixed
+    ```
+
+5.  med2vec query expansion. Must first grab the med2vec.py file from the
     https://github.com/mp2893/med2vec.
 
     ```bash
-    $ python med2vec_query_expansion.py
+    $ python med2vec_query_expansion.py sim_thresh
     ```
 
-5.  PMI or co-occurrence-based query expansion.
+6.  PMI or co-occurrence-based query expansion.
 
     ```bash
     $ python cooccurrence_query_expansion.py pmi/cooccurrence herbs/symptoms/mixed

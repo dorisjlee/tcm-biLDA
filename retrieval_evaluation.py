@@ -2,6 +2,7 @@
 
 from collections import OrderedDict
 import math
+from multiprocessing import Pool
 import operator
 from rank_metrics import ndcg_at_k, precision_at_k
 import sys
@@ -90,14 +91,18 @@ def get_rel_score(query_disease_list, doc_disease_list):
     This function determines how we compute a relevance score between a query's
     diseases and the document's diseases.
     '''
+    # TODO: maybe change the way we calculate relevance.
     size_inter = len(set(query_disease_list).intersection(doc_disease_list))
-    # Computing the intersection between the two for gain.
     if rank_metric == 'ndcg':
+    # Computing the intersection between the two for gain.
+    # TODO: currently normalizing by both terms.
+    # return size_inter / float(len(query_disease_list) * len(doc_disease_list))
         return size_inter / float(len(query_disease_list))
-    # Otherwise, binary relevance.
-    elif size_inter > 0:
-        return 1
-    return 0
+    else:
+        if size_inter > 0:
+            return 1
+        else:
+            return 0
 
 def evaluate_retrieval(query_dct, corpus_dct, inverted_index, method_type):
     '''
@@ -141,45 +146,61 @@ def evaluate_retrieval(query_dct, corpus_dct, inverted_index, method_type):
                 metric_dct[k] += [ndcg_at_k(rel_list, k)]
             elif rank_metric == 'precision':
                 metric_dct[k] += [precision_at_k(rel_list, k)]
+            elif rank_metric == 'recall':
+                metric_dct[k] += [sum(rel_list[:k]) / float(sum(rel_list))]
     return metric_dct
 
+def perform_retrieval(run_num):
+    test_fname = './data/train_test/test_%s_%d.txt' % (method_type, run_num)
+    # Training set is always the same.
+    train_fname = './data/train_test/train_no_expansion_%d.txt' % run_num
+    query_dct = read_input_file(test_fname)
+    corpus_dct = read_input_file(train_fname)
+    inverted_index = get_inverted_index(corpus_dct, method_type)
+
+    metric_dct = evaluate_retrieval(query_dct, corpus_dct, inverted_index,
+        method_type)
+    return metric_dct
+    # Compile the metric scores across all runs.
+    # for k in k_list:
+        # metric_list = metric_dct[k]
+        # all_metric_dct[k] += metric_list
+
 def main():
-    if len(sys.argv) != 3:
-        print ('Usage: python %s no/lda_symptoms/lda_herbs/lda_mixed/bilda_'
-            'symptoms/bilda_herbs/bilda_mixed/dca_symptoms/dca_'
-            'herbs/dca_mixed/med2vec_symptoms/med2vec_herbs/med2vec_mixed/'
-            'synonym/pmi_herbs/pmi_symptoms/pmi_mixed/cooccurrence_herbs/'
-            'cooccurrence_symptoms/cooccurrence_mixed rank_metric' %
-            sys.argv[0])
+    if len(sys.argv) not in [3, 4]:
+        print 'Usage: python %s method ndcg/p/r term_type<optional>' % sys.argv[0]
         exit()
     global rank_metric
-    assert (sys.argv[1] in ['no', 'lda_symptoms', 'lda_herbs', 'lda_mixed',
-        'bilda_symptoms', 'bilda_herbs', 'bilda_mixed', 'dca_symptoms',
-        'dca_herbs', 'dca_mixed', 'med2vec_symptoms', 'med2vec_herbs',
-        'med2vec_mixed', 'synonym', 'pmi_herbs', 'pmi_symptoms', 'pmi_mixed',
-        'cooccurrence_herbs', 'cooccurrence_symptoms', 'cooccurrence_mixed'])
-    method_type = '%s_expansion' % sys.argv[1]
+    method = sys.argv[1]
+    assert (method in ['no', 'synonym', 'lda', 'bilda', 'dca', 'med2vec',
+        'pmi', 'cooccurrence', 'prosnet'])
     rank_metric = sys.argv[2]
     assert rank_metric in ['ndcg', 'precision', 'recall']
+    if len(sys.argv) == 4:
+        term_type = sys.argv[3]
+        assert term_type in ['herbs', 'symptoms', 'mixed']
+        method += '_%s' % term_type
+
+    global method_type, all_metric_dct
+    method_type = '%s_expansion' % method
 
     all_metric_dct = {}
+    for k in k_list:
+        all_metric_dct[k] = []
     # range(10) because we are performing 10-fold CV.
-    for run_num in range(10):
-        test_fname = './data/train_test/test_%s_%d.txt' % (method_type, run_num)
-        # Training set is always the same.
-        train_fname = './data/train_test/train_no_expansion_%d.txt' % run_num
-        query_dct = read_input_file(test_fname)
-        corpus_dct = read_input_file(train_fname)
-        inverted_index = get_inverted_index(corpus_dct, method_type)
-
-        metric_dct = evaluate_retrieval(query_dct, corpus_dct, inverted_index,
-            method_type)
-        # Compile the metric scores across all runs.
+    pool = Pool(processes=10)
+    # for run_num in range(10):
+        # arg = ['python', command] + format_lst + [network_type, 'prosnet']
+        # pool.apply_async(subprocess.call, (arg,))
+        # perform_retrieval(all_metric_dct, run_num)
+        # pool.apply_async(perform_retrieval, (run_num,))
+    metric_dcts = pool.map(perform_retrieval, range(10))
+    for metric_dct in metric_dcts:
         for k in k_list:
             metric_list = metric_dct[k]
-            if k not in all_metric_dct:
-                all_metric_dct[k] = []
             all_metric_dct[k] += metric_list
+    pool.close()
+    pool.join()
 
     out = open('./results/%s_%s.txt' % (method_type, rank_metric), 'w')
     for k in k_list:
@@ -189,6 +210,6 @@ def main():
     out.close()
 
 if __name__ == '__main__':
-    start_time = time.time()
+    # start_time = time.time()
     main()
-    print "---%f seconds---" % (time.time() - start_time)
+    # print "---%f seconds---" % (time.time() - start_time)

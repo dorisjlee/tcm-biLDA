@@ -134,7 +134,9 @@ def get_matrix_from_dct(patient_dct, code_list):
     return np.array(patient_matrix)
 
 def run_baseline_lda(patient_matrix, code_list, disease_set):
-    model = lda.LDA(n_topics=len(disease_set), n_iter=5000, random_state=1)
+    # TODO: Just using 100 topics.
+    # model = lda.LDA(n_topics=len(disease_set), n_iter=5000, random_state=1)
+    model = lda.LDA(n_topics=100, n_iter=5000, random_state=1)
     model.fit(patient_matrix)
     topic_word = model.topic_word_
     return topic_word

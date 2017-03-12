@@ -1,3 +1,4 @@
+from multiprocessing import Pool
 import numpy as np
 import sys
 import time
@@ -5,6 +6,8 @@ import time
 ### This script rewrites the test files, except with query expansion performed
 ### on each query patient's list of symptoms.
 ### Run time: 5 minutes.
+
+# num_max_terms = 5
 
 def read_code_list(run_num):
     code_list = []
@@ -66,9 +69,9 @@ def get_highest_prob_words(symptom_list, scaled_topic, code_list,
             continue
         if candidate not in symptom_list:
             expansion_terms += [candidate]
-        # We only add 10 expansion terms.
-        if len(expansion_terms) == 10:
-            break
+        # We only add expansion terms until we have 10 total terms.
+        # if len(expansion_terms) == num_max_terms - len(symptom_list):
+        #     break
     return expansion_terms
 
 def query_expansion(run_num):
@@ -93,9 +96,17 @@ def query_expansion(run_num):
         query = query.split('\t')
         symptom_list = query[4].split(':')[:-1]
 
+        if len(symptom_list) >= num_terms:
+            out.write('\t'.join(query))
+            continue
+
         scaled_topic = get_scaled_topic(symptom_list, word_distr, code_list)
         expansion_terms = get_highest_prob_words(symptom_list, scaled_topic,
             code_list, symptom_count_dct)
+
+        # TODO: Currently shaving off terms.
+        # expansion_terms = expansion_terms[:num_terms]
+        expansion_terms = expansion_terms[:num_terms-len(symptom_list)]
 
         # Write expanded query to file
         expanded_query = query[:]
@@ -106,18 +117,22 @@ def query_expansion(run_num):
     out.close()
 
 def main():
-    if len(sys.argv) != 2:
-        print ('Usage: python %s herbs/symptoms/mixed' % sys.argv[0])
+    if len(sys.argv) != 3:
+        print ('Usage: python %s herbs/symptoms/mixed num_terms' % sys.argv[0])
         exit()
     # This variable determines what types of medical codes to add to the query.
-    global expansion_type
+    global expansion_type, num_terms
     expansion_type = sys.argv[1]
     assert expansion_type in ['herbs', 'symptoms', 'mixed']
+    num_terms = int(sys.argv[2])
 
+    pool = Pool(processes=10)
     for run_num in range(10):
-        query_expansion(run_num)
+        pool.apply_async(query_expansion, (run_num,))
+    pool.close()
+    pool.join()
 
 if __name__ == '__main__':
-    start_time = time.time()
+    # start_time = time.time()
     main()
-    print "---%f seconds---" % (time.time() - start_time)
+    # print "---%f seconds---" % (time.time() - start_time)

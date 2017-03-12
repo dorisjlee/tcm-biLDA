@@ -1,6 +1,7 @@
 ### Author: Edward Huang
 
 from monolingual_lda_baseline import get_patient_dct
+from multiprocessing import Pool
 import numpy as np
 import operator
 import os
@@ -89,6 +90,7 @@ def get_similarity_dct(emb_fname, code_list):
         row_code = code_list[row_i]
         for col_i in range(row_i + 1, len(row)):
             col_code = code_list[col_i]
+            # 1 - since we're using cosine distance.
             similarity_dct[(row_code, col_code)] = 1 - row[col_i]
     return similarity_dct
 
@@ -116,19 +118,28 @@ def get_expansion_terms(symptom_list, similarity_dct, code_list,
             else:
                 score = similarity_dct[(training_code, query_symptom)]
             # Don't threshold, since med2vec embeddings are not that close.
-            candidate_term_dct[training_code] = score
-    # Get the top 10 terms.
+            # candidate_term_dct[training_code] = score
+            # TODO: currently only keeping codes above a certain threshold.
+            if score > sim_thresh:
+                candidate_term_dct[training_code] = score
+    # Get the top 10 terms. # TODO> adding all terms above the threshold.
+    # expansion_terms = sorted(candidate_term_dct.items(),
+    #     key=operator.itemgetter(1), reverse=True)[:10]
     expansion_terms = sorted(candidate_term_dct.items(),
-        key=operator.itemgetter(1), reverse=True)[:10]
+        key=operator.itemgetter(1), reverse=True)
     # Extract just the terms from the sorted list.
     expansion_terms = [term[0] for term in expansion_terms]
     return expansion_terms
 
-def query_expansion(run_num, emb_fname, code_list, expansion_type):
+# def query_expansion(run_num, emb_fname, code_list, expansion_type):
+def query_expansion(run_num, expansion_type):
     '''
     Gets the top 10 most similar codes to each query's symptom set, based on
     the embeddings computed by med2vec.
     '''
+    # TODO: added these two extra lines.
+    code_list = read_code_list(run_num)
+    emb_fname = './data/med2vec/embeddings_%s' % run_num
     similarity_dct = get_similarity_dct(emb_fname, code_list)
     # The list of medical codes in the training set.
     if expansion_type == 'symptoms':
@@ -162,19 +173,33 @@ def query_expansion(run_num, emb_fname, code_list, expansion_type):
     out.close()
 
 def main():
+    if len(sys.argv) != 3:
+        print 'Usage: python %s herbs/symptoms/mixed s' % sys.argv[0]
+        exit()
+    # This variable determines what types of medical codes to add to the query.
+    expansion_type = sys.argv[1]
+    assert expansion_type in ['herbs', 'symptoms', 'mixed']
+    global sim_thresh
+    sim_thresh = float(sys.argv[2])
+
     generate_directories()
 
+    pool = Pool(processes=10)
     for run_num in range(10):
-        pickle_fname = './data/med2vec/train_%s.pickle' % run_num
-        code_list = create_med2vec_input(run_num, pickle_fname)
-        emb_fname = run_med2vec(run_num, len(code_list), pickle_fname)
+        # pickle_fname = './data/med2vec/train_%s.pickle' % run_num
+        # code_list = create_med2vec_input(run_num, pickle_fname)
+        # emb_fname = run_med2vec(run_num, len(code_list), pickle_fname)
         
-        emb_fname = './data/med2vec/embeddings_%s' % run_num
-        query_expansion(run_num, emb_fname, code_list, 'herbs')
-        query_expansion(run_num, emb_fname, code_list, 'symptoms')
-        query_expansion(run_num, emb_fname, code_list, 'mixed')
+        # emb_fname = './data/med2vec/embeddings_%s' % run_num
+        # query_expansion(run_num, emb_fname, code_list, 'herbs')
+        # query_expansion(run_num, emb_fname, code_list, 'symptoms')
+        # query_expansion(run_num, emb_fname, code_list, 'mixed')
+        # query_expansion(run_num, expansion_type)
+        pool.apply_async(query_expansion, (run_num, expansion_type))
+    pool.close()
+    pool.join()
 
 if __name__ == '__main__':
-    start_time = time.time()
+    # start_time = time.time()
     main()
-    print "---%f seconds---" % (time.time() - start_time)
+    # print "---%f seconds---" % (time.time() - start_time)
