@@ -1,3 +1,7 @@
+### Author: Edward Huang
+
+import argparse
+import math
 from multiprocessing import Pool
 import numpy as np
 import sys
@@ -6,8 +10,6 @@ import time
 ### This script rewrites the test files, except with query expansion performed
 ### on each query patient's list of symptoms.
 ### Run time: 5 minutes.
-
-# num_max_terms = 5
 
 def read_code_list(run_num):
     code_list = []
@@ -58,14 +60,14 @@ def get_highest_prob_words(symptom_list, scaled_topic, code_list,
     on twice as many expansion terms as there are symptoms.
     '''
     expansion_terms = []
-
     highest_prob_words = np.array(code_list)[np.argsort(scaled_topic)]
     for candidate in highest_prob_words:
-        # Decide whether to add a candidate based on expansion_type.
+        # Decide whether to add a candidate based on args.term_type.
         candidate_is_symptom = candidate in symptom_count_dct
-        if expansion_type == 'herbs' and candidate_is_symptom:
+
+        if args.term_type == 'herbs' and candidate_is_symptom:
             continue
-        elif expansion_type == 'symptoms' and not candidate_is_symptom:
+        elif args.term_type == 'symptoms' and not candidate_is_symptom:
             continue
         if candidate not in symptom_list:
             expansion_terms += [candidate]
@@ -82,55 +84,59 @@ def query_expansion(run_num):
     '''
     code_list = read_code_list(run_num)
     word_distr = np.loadtxt('./results/lda_word_distributions/lda_word_distrib'
-        'ution_%d.txt' % run_num)
+        'ution_%d_%d.txt' % (args.num_topics, run_num))
     symptom_count_dct = get_symptom_count_dct(run_num)
-    
+
     # Process filename.
     out_fname = './data/train_test/test_lda_%s_expansion_%d.txt' % (
-        expansion_type, run_num)
+        args.term_type, run_num)
 
     out = open(out_fname, 'w')
     f = open('./data/train_test/test_no_expansion_%d.txt' % run_num, 'r')
     for query in f:
-        # Split by tab, fifth element, split by comma, take out trailing comma.
+        # Split by tab, fifth element, split by colon.
         query = query.split('\t')
-        symptom_list = query[4].split(':')[:-1]
+        symptom_list = query[4].split(':')
 
-        if len(symptom_list) >= num_terms:
-            out.write('\t'.join(query))
-            continue
+        # if len(symptom_list) >= args.num_terms:
+        # if len(symptom_list) >= 10:
+        #     out.write('\t'.join(query))
+        #     continue
 
         scaled_topic = get_scaled_topic(symptom_list, word_distr, code_list)
         expansion_terms = get_highest_prob_words(symptom_list, scaled_topic,
             code_list, symptom_count_dct)
 
         # TODO: Currently shaving off terms.
-        # expansion_terms = expansion_terms[:num_terms]
-        expansion_terms = expansion_terms[:num_terms-len(symptom_list)]
+        expansion_terms = expansion_terms[:args.num_terms]
+        # TODO: adding only percentage of terms
+        # expansion_terms = expansion_terms[:int(math.ceil(len(symptom_list) * 0.2))]
+        # expansion_terms = expansion_terms[:args.num_terms-len(symptom_list)]
 
         # Write expanded query to file
         expanded_query = query[:]
-        expanded_query[4] += ':'.join(expansion_terms) + ':'
-        
+        expanded_query[4] += ':' + ':'.join(expansion_terms)
+
         out.write('\t'.join(expanded_query))
     f.close()
     out.close()
 
+def parse_args():
+    global args
+    parser = argparse.ArgumentParser()
+    parser.add_argument('-t', '--term_type', choices=['herbs', 'symptoms',
+        'mixed'], required=True, help='Type of query expansion terms.')
+    parser.add_argument('-n', '--num_topics', required=True, type=int,
+        help='Number of monolingual LDA topics to train on.')
+    parser.add_argument('-e', '--num_terms', required=True, type=int,
+        help='Number of expansion terms to add.')
+    args = parser.parse_args()
+
 def main():
-    if len(sys.argv) != 3:
-        print ('Usage: python %s herbs/symptoms/mixed num_terms' % sys.argv[0])
-        exit()
-    # This variable determines what types of medical codes to add to the query.
-    global expansion_type, num_terms
-    expansion_type = sys.argv[1]
-    assert expansion_type in ['herbs', 'symptoms', 'mixed']
-    num_terms = int(sys.argv[2])
+    parse_args()
 
     pool = Pool(processes=10)
-    for run_num in range(10):
-        pool.apply_async(query_expansion, (run_num,))
-    pool.close()
-    pool.join()
+    pool.map(query_expansion, range(10))
 
 if __name__ == '__main__':
     # start_time = time.time()
