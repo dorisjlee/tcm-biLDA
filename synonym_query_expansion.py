@@ -1,5 +1,6 @@
 ### Author: Edward Huang
 
+from multiprocessing import Pool
 import time
 
 ### This script performs query expansion by synonyms according to the herb-
@@ -71,21 +72,21 @@ def query_expansion(run_num):
     for query in f:
         # Split by tab, fifth element, split by comma, take out trailing comma.
         query = query.split('\t')
-        symptom_list = query[4].split(':')[:-1]
+        symptom_list = query[4].split(':')
 
         expansion_terms = get_expansion_terms(symptom_list, herb_symptom_dct)
 
         # Write expanded query to file
         expanded_query = query[:]
-        expanded_query[4] += ':'.join(expansion_terms) + ':'
+        expanded_query[4] += ':' + ':'.join(expansion_terms)
         
         out.write('\t'.join(expanded_query))
     f.close()
     out.close()
 
 def main():
-    for run_num in range(10):
-        query_expansion(run_num)
+    pool = Pool(processes=10)
+    pool.map(query_expansion, range(10))
 
 if __name__ == '__main__':
     start_time = time.time()
