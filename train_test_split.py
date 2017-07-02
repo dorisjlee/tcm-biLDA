@@ -17,7 +17,7 @@ def partition(lst, n):
         )] for i in xrange(n)]
 
 def main():
-    records = pd.read_csv('./data/clean_HIS_tuple_word.txt', delimiter='\t',
+    records = pd.read_csv('./data/clean_HIS_tuple_word_first_visit.txt', delimiter='\t',
         header=None)
 
     numRecords = records.shape[0]
