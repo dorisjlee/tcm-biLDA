@@ -1,18 +1,13 @@
-#!/usr/bin/python
-# -*- coding: utf-8 -*-
-
 import argparse
 from multiprocessing import Pool
 import numpy as np
 import os
 import lda
-import time
 
 ### This script runs regular LDA on a patient record training set (90% of the
 ### original data). Writes out the herb counts, symptom counts, code list (for
 ### mapping symptoms/herbs to integers), and the word distributions for each
 ### topic. The number of topics will match the number of unique diseases.
-### Run time: 5 minutes.
 
 def generate_folders():
     for folder in ('./results', './data/count_dictionaries',
@@ -31,8 +26,9 @@ def get_patient_dct(run_num):
     patient_dct = {}
 
     f = open('./data/train_test/train_no_expansion_%s.txt' % run_num, 'r')
-    for i, line in enumerate(f):
+    for line in f:
         diseases, name, dob, visit_date, symptoms, herbs = line.strip().split('\t')
+
         symptom_list = symptoms.split(':')
         herb_list = herbs.split(':')
         patient_dct[(name, dob)] = (symptom_list, herb_list)
@@ -132,6 +128,4 @@ def main():
     pool.map(lda_pipeline, range(10))
 
 if __name__ == '__main__':
-    start_time = time.time()
     main()
-    print "---%f seconds---" % (time.time() - start_time)

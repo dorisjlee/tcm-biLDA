@@ -1,5 +1,6 @@
 ### Author: Edward Huang
 
+import argparse
 from monolingual_lda_baseline import get_patient_dct
 from multiprocessing import Pool
 import numpy as np
@@ -8,8 +9,6 @@ import os
 import cPickle
 from scipy.spatial.distance import pdist, squareform
 import subprocess
-import sys
-import time
 
 ### Rewrites the query test files by adding on the most similar medical codes
 ### to the symptom section. Query expansion is done by med2vec.
@@ -35,37 +34,35 @@ def create_med2vec_input(run_num, pickle_fname):
     Generates the pickle lists for running with med2vec. Writes it out to
     file. Returns the codes for this training set.
     '''
-    test_fname = './data/train_test/train_no_expansion_%s.txt' % run_num
-    patient_dct, disease_set = get_patient_dct(test_fname)
+    patient_dct = get_patient_dct(run_num)
     code_list = read_code_list(run_num)
     # Make the pickle list.
     pickle_list = []
     for key in patient_dct:
-        visit_dct = patient_dct[key]
-        if len(visit_dct) == 1:
-            continue
-        for date in sorted(visit_dct.keys()):
-            disease_list, symptom_list, herb_list = visit_dct[date]
-            # Convert each symptom/herb to their index in the code list.
-            symptom_list = [code_list.index(symp) for symp in symptom_list]
-            herb_list = [code_list.index(herb) for herb in herb_list]
-            # pickle_list is where each visit is all symptoms and herbs.
-            pickle_list += [symptom_list + herb_list]
+        symptom_list, herb_list = patient_dct[key]
+        # Convert each symptom/herb to their index in the code list.
+        symptom_list = [code_list.index(symp) for symp in symptom_list]
+        herb_list = [code_list.index(herb) for herb in herb_list]
+        # pickle_list is where each visit is all symptoms and herbs.
+        pickle_list += [symptom_list + herb_list]
         # A [-1] is the delimiter between patients.
         pickle_list += [[-1]]
     # Remove the trailing delimiter.
     pickle_list = pickle_list[:-1]
     with open(pickle_fname, 'wb') as out:
-        cPickle.dump(pickle_list, out)   
+        cPickle.dump(pickle_list, out)
     return code_list
 
-def run_med2vec(run_num, num_codes, pickle_fname):
+def run_med2vec(run_num):
     '''
     Calls the external med2vec.py script.
     '''
+    pickle_fname = './data/med2vec/train_%s.pickle' % run_num
+    code_list = create_med2vec_input(run_num, pickle_fname)
+
     emb_fname = './data/med2vec/embeddings_%s' % run_num
-    command = 'python med2vec.py %s --n_epoch %d %d %s' % (pickle_fname,
-        n_iterations, num_codes, emb_fname)
+    command = '/usr/local/bin/python2.7 med2vec.py %s --n_epoch %d %d %s' % (pickle_fname,
+        n_iterations, len(code_list), emb_fname)
     subprocess.call(command, shell=True)
     return emb_fname
 
@@ -90,8 +87,9 @@ def get_similarity_dct(emb_fname, code_list):
         row_code = code_list[row_i]
         for col_i in range(row_i + 1, len(row)):
             col_code = code_list[col_i]
-            # 1 - since we're using cosine distance.
-            similarity_dct[(row_code, col_code)] = 1 - row[col_i]
+            # 1 - since we're using cosine distance. TODO: abs.
+            similarity_dct[(row_code, col_code)] = abs(1 - row[col_i])
+            # similarity_dct[(row_code, col_code)] = 1 - row[col_i]
     return similarity_dct
 
 def get_expansion_terms(symptom_list, similarity_dct, code_list,
@@ -117,34 +115,29 @@ def get_expansion_terms(symptom_list, similarity_dct, code_list,
                 score = similarity_dct[(query_symptom, training_code)]
             else:
                 score = similarity_dct[(training_code, query_symptom)]
-            # Don't threshold, since med2vec embeddings are not that close.
-            # candidate_term_dct[training_code] = score
-            # TODO: currently only keeping codes above a certain threshold.
-            if score > sim_thresh:
-                candidate_term_dct[training_code] = score
-    # Get the top 10 terms. # TODO> adding all terms above the threshold.
-    # expansion_terms = sorted(candidate_term_dct.items(),
-    #     key=operator.itemgetter(1), reverse=True)[:10]
+                
+            if training_code not in candidate_term_dct:
+                candidate_term_dct[training_code] = 0.0
+            candidate_term_dct[training_code] += score
+            
     expansion_terms = sorted(candidate_term_dct.items(),
         key=operator.itemgetter(1), reverse=True)
     # Extract just the terms from the sorted list.
     expansion_terms = [term[0] for term in expansion_terms]
     return expansion_terms
 
-# def query_expansion(run_num, emb_fname, code_list, expansion_type):
-def query_expansion(run_num, expansion_type):
+def query_expansion(run_num):
     '''
     Gets the top 10 most similar codes to each query's symptom set, based on
     the embeddings computed by med2vec.
     '''
-    # TODO: added these two extra lines.
     code_list = read_code_list(run_num)
     emb_fname = './data/med2vec/embeddings_%s' % run_num
     similarity_dct = get_similarity_dct(emb_fname, code_list)
     # The list of medical codes in the training set.
-    if expansion_type == 'symptoms':
+    if args.term_type == 'symptoms':
         training_code_list = get_count_dct('symptom', run_num).keys()
-    elif expansion_type == 'herbs':
+    elif args.term_type == 'herbs':
         training_code_list = get_count_dct('herb', run_num).keys()
     else:
         training_code_list = get_count_dct('symptom', run_num
@@ -152,54 +145,47 @@ def query_expansion(run_num, expansion_type):
 
     # Process output filename.
     out_fname = './data/train_test/test_med2vec_%s_expansion_%d.txt' % (
-        expansion_type, run_num)
+        args.term_type, run_num)
 
     out = open(out_fname, 'w')
     f = open('./data/train_test/test_no_expansion_%d.txt' % run_num, 'r')
     for query in f:
         # Split by tab, fifth element, split by comma, take out trailing comma.
         query = query.split('\t')
-        symptom_list = query[4].split(':')[:-1]
+        symptom_list = query[4].split(':')
 
         expansion_terms = get_expansion_terms(symptom_list, similarity_dct,
             code_list, training_code_list)
 
+        # TODO: only getting the top 5 terms.
+        expansion_terms = expansion_terms[:5]
+
         # Write expanded query to file
         expanded_query = query[:]
-        expanded_query[4] += ':'.join(expansion_terms) + ':'
+        expanded_query[4] += ':' + ':'.join(expansion_terms)
         
         out.write('\t'.join(expanded_query))
     f.close()
     out.close()
 
+def parse_args():
+    global args
+    parser = argparse.ArgumentParser()
+    parser.add_argument('-t', '--term_type', choices=['herbs', 'symptoms',
+        'mixed'], required=True, help='Type of query expansion terms.')
+    args = parser.parse_args()
+
 def main():
-    if len(sys.argv) != 3:
-        print 'Usage: python %s herbs/symptoms/mixed s' % sys.argv[0]
-        exit()
-    # This variable determines what types of medical codes to add to the query.
-    expansion_type = sys.argv[1]
-    assert expansion_type in ['herbs', 'symptoms', 'mixed']
-    global sim_thresh
-    sim_thresh = float(sys.argv[2])
+    parse_args()
 
     generate_directories()
 
     pool = Pool(processes=10)
-    for run_num in range(10):
-        # pickle_fname = './data/med2vec/train_%s.pickle' % run_num
-        # code_list = create_med2vec_input(run_num, pickle_fname)
-        # emb_fname = run_med2vec(run_num, len(code_list), pickle_fname)
-        
-        # emb_fname = './data/med2vec/embeddings_%s' % run_num
-        # query_expansion(run_num, emb_fname, code_list, 'herbs')
-        # query_expansion(run_num, emb_fname, code_list, 'symptoms')
-        # query_expansion(run_num, emb_fname, code_list, 'mixed')
-        # query_expansion(run_num, expansion_type)
-        pool.apply_async(query_expansion, (run_num, expansion_type))
-    pool.close()
-    pool.join()
+
+    ### TODO HERE.
+    # pool.map(run_med2vec, range(10))
+
+    pool.map(query_expansion, range(10))
 
 if __name__ == '__main__':
-    # start_time = time.time()
     main()
-    # print "---%f seconds---" % (time.time() - start_time)

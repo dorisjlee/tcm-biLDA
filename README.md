@@ -3,6 +3,7 @@
 ### Preprocessing
     
 1.  Removes blank records, as well as records that have null name/dob.
+    Gets only the first visit for each patient.
 
     ```bash
     $ python remove_blank_queries.py
@@ -22,10 +23,11 @@
     topics), and m is the number of codes. Code mappings are under ./data/code_lists/
 
     ```bash
-    $ python monolingual_lda_baseline.py
+    $ python monolingual_lda_baseline.py [-h] -n NUM_TOPICS
     ```
 
-2.  Runs PLTM for two languages. Reduces to BiLDA.
+2.  Runs PLTM for two languages. Reduces to BiLDA. Change number of topics at
+    line 55.
 
     ```bash
     python train_pltm.py
@@ -37,7 +39,8 @@
     symptoms. Add 10 expansion terms. Requires monolingual_lda_baseline.py.
 
     ```bash
-    $ python lda_query_expansion.py herbs/symptoms/mixed
+    $ python lda_query_expansion.py [-h] -t {herbs,symptoms,mixed} -n NUM_TOPICS -e
+                              NUM_TERMS
     ```
 
 2.  Adds the synonyms to each query based on the herb-symptom dictionary. Can
@@ -50,9 +53,11 @@
 
 3.  Adds the most similar terms by word embedding. Run from PaReCat's
     embeddings on the network constructed by the herb-symptom dictionary.
+    Must run monolingual baseline beforehand.
 
     ```bash
-    $ python dca_query_expansion.py dca herbs/symptoms/mixed sim_thresh
+    $ python dca_query_expansion.py [-h] -m {dca,prosnet} -s SIM_THRESH -t
+                              {herbs,symptoms,mixed}
     ```
 
 4.  Runs prosnet on the PPI, Protein-herb, herb-symptom dictionary, co-occurrence
@@ -85,14 +90,19 @@
     diseases between the query and document.
 
     ```bash
-    $ python retrieval_evaluation.py no/lda_symptoms/lda_herbs/lda_mixed/bilda_symptoms/bilda_herbs/bilda_mixed/dca_symptoms/dca_herbs/dca_mixed/med2vec_symptoms/med2vec_herbs/med2vec_mixed/synonym/pmi_herbs/pmi_symptoms/pmi_mixed/cooccurrence_herbs/cooccurrence_symptoms/cooccurrence_mixed rank_metric
+    python retrieval_evaluation.py [-h] -m
+                   {no,synonym,lda,bilda,dca,med2vec,pmi,cooccurrence,prosnet}
+                   -r {ndcg,precision,recall}
+                   [-t {herbs,symptoms,mixed}]
     ```
-
-    rank_metric in ['ndcg', 'precision', 'recall']
 
 2.  Runs the paired t-tests comparing each of the topic model-based query
     expansion to the baseline without expansion.
 
     ```bash
-    $ python significance_test.py no/lda_symptoms/lda_herbs/lda_mixed/bilda_symptoms/bilda_herbs/bilda_mixed/dca_symptoms/dca_herbs/dca_mixed/med2vec_symptoms/med2vec_herbs/med2vec_mixed/synonym/pmi_herbs/pmi_symptoms/pmi_mixed/cooccurrence_herbs/cooccurrence_symptoms/cooccurrence_mixed rank_metric
+    python significance_test.py [-h] -m
+                    {no,synonym,lda,bilda,dca,med2vec,pmi,cooccurrence,prosnet}
+                    -r {ndcg,precision,recall}
+                    [-t {herbs,symptoms,mixed}]
+
     ```

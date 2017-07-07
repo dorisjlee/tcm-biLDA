@@ -4,12 +4,9 @@ import argparse
 import math
 from multiprocessing import Pool
 import numpy as np
-import sys
-import time
 
 ### This script rewrites the test files, except with query expansion performed
 ### on each query patient's list of symptoms.
-### Run time: 5 minutes.
 
 def read_code_list(run_num):
     code_list = []
@@ -41,14 +38,16 @@ def get_scaled_topic(symptom_list, word_distr, code_list):
     elementwise.
     '''
     # Number of top words to define a topic.
-    n_top_words = 200
+    n_top_words = 100
     scaled_topic = np.zeros(len(code_list))
 
-    for i, topic_dist in enumerate(word_distr):
+    for topic_dist in word_distr:
+        # Get the topic's top 100 words by word probability.
         topic_words = np.array(code_list)[np.argsort(topic_dist)][:-(
             n_top_words + 1):-1]
         # Number of query terms in the top n words.
         num_shared_terms = len(set(topic_words).intersection(symptom_list))
+        # Scale each topic by the number of terms it shares with the query.
         scaled_topic += topic_dist * num_shared_terms
 
     return scaled_topic
@@ -60,7 +59,8 @@ def get_highest_prob_words(symptom_list, scaled_topic, code_list,
     on twice as many expansion terms as there are symptoms.
     '''
     expansion_terms = []
-    highest_prob_words = np.array(code_list)[np.argsort(scaled_topic)]
+    # TODO: I reversed this.
+    highest_prob_words = np.array(code_list)[np.argsort(scaled_topic)][::-1]
     for candidate in highest_prob_words:
         # Decide whether to add a candidate based on args.term_type.
         candidate_is_symptom = candidate in symptom_count_dct
@@ -71,9 +71,6 @@ def get_highest_prob_words(symptom_list, scaled_topic, code_list,
             continue
         if candidate not in symptom_list:
             expansion_terms += [candidate]
-        # We only add expansion terms until we have 10 total terms.
-        # if len(expansion_terms) == num_max_terms - len(symptom_list):
-        #     break
     return expansion_terms
 
 def query_expansion(run_num):
@@ -96,23 +93,16 @@ def query_expansion(run_num):
     for query in f:
         # Split by tab, fifth element, split by colon.
         query = query.split('\t')
+
         symptom_list = query[4].split(':')
 
-        # if len(symptom_list) >= args.num_terms:
-        # if len(symptom_list) >= 10:
-        #     out.write('\t'.join(query))
-        #     continue
-
         scaled_topic = get_scaled_topic(symptom_list, word_distr, code_list)
+
         expansion_terms = get_highest_prob_words(symptom_list, scaled_topic,
             code_list, symptom_count_dct)
 
-        # TODO: Currently shaving off terms.
+        # Adding up to num_terms expansion terms.
         expansion_terms = expansion_terms[:args.num_terms]
-        # TODO: adding only percentage of terms
-        # expansion_terms = expansion_terms[:int(math.ceil(len(symptom_list) * 0.2))]
-        # expansion_terms = expansion_terms[:args.num_terms-len(symptom_list)]
-
         # Write expanded query to file
         expanded_query = query[:]
         expanded_query[4] += ':' + ':'.join(expansion_terms)
@@ -139,6 +129,4 @@ def main():
     pool.map(query_expansion, range(10))
 
 if __name__ == '__main__':
-    # start_time = time.time()
     main()
-    # print "---%f seconds---" % (time.time() - start_time)

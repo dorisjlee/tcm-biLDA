@@ -47,7 +47,9 @@ def read_dca_similarity_dct(similarity_code_list, df_fname):
     f = open('./data/similarity_matrix.txt', 'r')
     for i, line in enumerate(f):
         index_a, index_b, score = line.split()
-        similarity_dct[(int(index_a), int(index_b))] = abs(float(score))
+        # TODO: absolute value?
+        # similarity_dct[(int(index_a), int(index_b))] = abs(float(score))
+        similarity_dct[(int(index_a), int(index_b))] = float(score)
     f.close()
     # Unstack the dictionary to create a dataframe.
     similarity_df = pd.Series(similarity_dct).unstack()
@@ -117,14 +119,17 @@ def get_expansion_terms(symptom_list, similarity_df, similarity_code_list,
             # Skip candidates that aren't in the dictionary.
             if training_code not in similarity_code_list:
                 continue
-
+            # TODO: Abs or not?
             score = similarity_df[query_symptom][training_code]
-            # Keep only terms that have a score above a threshold.
-            if args.embed_method == 'dca' and score < args.sim_thresh:
-                continue
-            elif args.embed_method == 'prosnet' and score < 0.3:
-                continue
-            candidate_term_dct[training_code] = score
+            # Keep only terms that have a score above a threshold. TODO.
+            # if args.embed_method == 'dca' and score < args.sim_thresh:
+            #     continue
+            # elif args.embed_method == 'prosnet' and score < 0.3:
+            #     continue
+            if training_code not in candidate_term_dct:
+                candidate_term_dct[training_code] = 0.0
+                # TODO: abs?
+            candidate_term_dct[training_code] += abs(score)
     # Get the top 10 terms.
     expansion_terms = sorted(candidate_term_dct.items(),
         key=operator.itemgetter(1), reverse=True)
@@ -147,8 +152,10 @@ def query_expansion(run_num, similarity_df, similarity_code_list):
             'herb', run_num)
         
     # Process output filename.
-    out_fname = './data/train_test/test_%s_%g_%s_expansion_%d.txt' % (
-        args.embed_method, args.sim_thresh, args.term_type, run_num)
+    # out_fname = './data/train_test/test_%s_%g_%s_expansion_%d.txt' % (
+    #     args.embed_method, args.sim_thresh, args.term_type, run_num)
+    out_fname = './data/train_test/test_%s_%s_expansion_%d.txt' % (
+        args.embed_method, args.term_type, run_num)
 
     out = open(out_fname, 'w')
     f = open('./data/train_test/test_no_expansion_%d.txt' % run_num, 'r')
@@ -166,7 +173,7 @@ def query_expansion(run_num, similarity_df, similarity_code_list):
 
         # # TODO: fill expansion terms up to 10 terms?
         # expansion_terms = expansion_terms[:10-len(symptom_list)]
-        # expansion_terms = expansion_terms[:5]
+        expansion_terms = expansion_terms[:5]
 
         # Write expanded query to file
         expanded_query = query[:]
@@ -182,8 +189,8 @@ def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument('-m', '--embed_method', choices=['dca', 'prosnet'],
         required=True, help='Type of query expansion to test.')
-    parser.add_argument('-s', '--sim_thresh', required=True,
-        help='Type of rank metric to use.', type=float)
+    # parser.add_argument('-s', '--sim_thresh', required=True,
+    #     help='Type of rank metric to use.', type=float)
     parser.add_argument('-t', '--term_type', choices=['herbs', 'symptoms',
         'mixed'], required=True, help='Type of query expansion terms.')
     args = parser.parse_args()
@@ -203,7 +210,6 @@ def main():
         num_codes = len(similarity_code_list)
         assert similarity_df.shape == (num_codes, num_codes)
 
-    # query_expansion(0, similarity_df, similarity_code_list)
     pool = Pool(processes=10)
     for run_num in range(10):
         # There's a ProSNet network for each fold.
